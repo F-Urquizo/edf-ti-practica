@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "allow": [
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(docker *)",
+      "Bash(systemctl *)",
+      "Bash(ssh *)"
+    ],
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/llaves/**)",
+      "Read(~/.ssh/**)",
+      "Bash(cat .env*)",
+      "Bash(rm -rf *)"
+    ]
+  }
+}
