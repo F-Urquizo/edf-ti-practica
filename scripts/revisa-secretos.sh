@@ -30,6 +30,8 @@ if [ ! -d "$DIR" ]; then
   echo "Error: la carpeta '$DIR' no existe." >&2
   exit 2
 fi
+# Una carpeta que empieza con "-" se confundiría con una opción de find
+case "$DIR" in -*) DIR="./$DIR" ;; esac
 
 # En Windows, si el PATH está mal, "find" puede ser C:\Windows\System32\find.exe
 if ! find "$DIR" -maxdepth 0 >/dev/null 2>&1; then
@@ -41,8 +43,9 @@ fi
 YO="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 
 # --- Patrones (grep -E, sin distinguir mayúsculas) ---------------------------
-# Valor literal: no vacío, no empieza con $ { ? ni comilla+$ (referencias a variables)
-LIT='["'"'"']?[^$"'"'"'{?[:space:]][^[:space:]]{3,}'
+# Valor literal: no vacío, no empieza con $ { ? ( < ni comilla+$ (referencias a
+# variables, subcomandos, etiquetas). Así el script tampoco detecta sus propias copias.
+LIT='["'"'"']?[^$"'"'"'{?(<[:space:]][^[:space:]]{3,}'
 SEP='["'"'"']?[[:space:]]*[:=][[:space:]]*'
 
 RE_LLAVE='-----BEGIN ([A-Z0-9]+ )*PRIVATE KEY( BLOCK)?-----|^PuTTY-User-Key-File-'
@@ -55,12 +58,14 @@ RE_CONTRASENA="$RE_CONTRASENA|net[[:space:]]+use[[:space:]][^|]*/user:[^[:space:
 RE_TOKEN="(token|api_?key|access_?key|secret_?key)[a-z0-9_]*${SEP}[\"']?[a-z0-9_.+/=-]{16,}"
 RE_TOKEN="$RE_TOKEN|bearer[[:space:]]+[a-z0-9_.+/=-]{16,}"
 RE_TOKEN="$RE_TOKEN|AKIA[0-9A-Z]{16}|gh[pousr]_[a-z0-9]{36}|github_pat_[a-z0-9_]{20,}|xox[baprs]-[a-z0-9-]{10,}"
+RE_TOKEN="$RE_TOKEN|AIza[0-9a-z_-]{35}|(^|[^a-z0-9])sk-[a-z0-9_-]{20,}"   # Google, OpenAI
 
 RE_CONEXION="[a-z][a-z0-9+.-]*://[^/:@[:space:]\$]+:[^/@[:space:]\$]+@"
 RE_CONEXION="$RE_CONEXION|(server|data[[:space:]]+source)[[:space:]]*=.*(password|pwd)[[:space:]]*=[[:space:]]*[^;\$\"'{[:space:]]"
 
-# Valores de plantilla que no son secretos
-RE_MARCADOR='CAMBIAR_EN_EL_SERVIDOR|changeme|x{4,}|\*{4,}'
+# Valores de plantilla que no son secretos. Solo cuentan justo después de = : o >
+# para no descartar una línea real que mencione "ejemplo" en otro lado.
+RE_MARCADOR='[=:>][[:space:]]*["'"'"']?(CAMBIAR|changeme|change_me|ejemplo|example|placeholder|x{4,}|\*{3,}|tu_|your_)'
 
 # --- Conteo y reporte ---------------------------------------------------------
 N_ENV=0; N_LLAVE=0; N_CONTRASENA=0; N_TOKEN=0; N_CONEXION=0
@@ -84,8 +89,9 @@ busca() { # archivo tipo patrón
   done
 }
 
-while IFS= read -r f; do
+while IFS= read -r -d '' f; do
   if [ "$f" -ef "$YO" ]; then continue; fi
+  f="${f#./}"
 
   case "${f##*/}" in
     .env.example|.env.sample|.env.template) ;;
@@ -97,7 +103,7 @@ while IFS= read -r f; do
   busca "$f" CONTRASENA      "$RE_CONTRASENA"
   busca "$f" TOKEN           "$RE_TOKEN"
   busca "$f" CADENA_CONEXION "$RE_CONEXION"
-done < <(find "$DIR" -name .git -prune -o -type f -print)
+done < <(find "$DIR" \( -name .git -o -name node_modules \) -prune -o -type f -print0)
 
 TOTAL=$((N_ENV + N_LLAVE + N_CONTRASENA + N_TOKEN + N_CONEXION))
 echo "Resumen: ARCHIVO_ENV=$N_ENV LLAVE_PRIVADA=$N_LLAVE CONTRASENA=$N_CONTRASENA TOKEN=$N_TOKEN CADENA_CONEXION=$N_CONEXION (total $TOTAL)"
