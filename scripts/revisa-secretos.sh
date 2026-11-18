@@ -2,13 +2,21 @@
 # revisa-secretos.sh - Busca secretos expuestos en un repositorio.
 # Reporta ruta, línea y tipo de cada hallazgo. NUNCA imprime el valor del secreto.
 #
-# Uso:    ./scripts/revisa-secretos.sh [carpeta]   (por defecto: la carpeta actual)
+# Uso:    ./scripts/revisa-secretos.sh [--json] [carpeta]   (por defecto: la carpeta actual)
+#         --json imprime solo un arreglo JSON [{"ruta","linea","tipo"}]; "linea" es null en .env.
 # Salida: código 0 si no hay hallazgos, 1 si encuentra algo, 2 si hay error de uso.
 #
 # Solo usa bash y grep. Compatible con bash 3.2 (macOS), Linux y Git Bash.
 set -euo pipefail
 
-DIR="${1:-.}"
+DIR="."
+JSON=0
+for arg in "$@"; do
+  case "$arg" in
+    --json) JSON=1 ;;
+    *) DIR="$arg" ;;
+  esac
+done
 if [ ! -d "$DIR" ]; then
   echo "Error: la carpeta '$DIR' no existe." >&2
   exit 2
@@ -35,10 +43,22 @@ N_TOKEN=0
 N_PASSWORD=0
 TOTAL=0
 
+# Hallazgos en JSON, acumulados para imprimirlos al final como un solo arreglo
+JSON_ITEMS=""
+
 # Imprime un hallazgo: ruta, línea y tipo. Nunca recibe el contenido de la línea.
+# Con --json no imprime: acumula el objeto. La línea "-" (archivo .env) pasa a null.
 reportar() {
   local ruta="${1#./}" linea="$2" tipo="$3"
-  printf '%-32s %-6s %s\n' "$ruta" "$linea" "$tipo"
+  if [ "$JSON" -eq 1 ]; then
+    [ "$linea" = "-" ] && linea="null"
+    # Escapa \ y " en la ruta. ponytail: no cubre tabuladores ni bytes de control en nombres.
+    ruta="$(printf '%s' "$ruta" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+    [ -n "$JSON_ITEMS" ] && JSON_ITEMS="$JSON_ITEMS,"$'\n'
+    JSON_ITEMS="$JSON_ITEMS  {\"ruta\": \"$ruta\", \"linea\": $linea, \"tipo\": \"$tipo\"}"
+  else
+    printf '%-32s %-6s %s\n' "$ruta" "$linea" "$tipo"
+  fi
   TOTAL=$((TOTAL + 1))
 }
 
@@ -56,10 +76,12 @@ buscar_por_linea() {
   done < <(grep -rnIiE "${EXCLUIR_DIRS[@]}" "${EXCLUIR_SCRIPT[@]}" "${EXCLUIR_ENV[@]}" -e "$patron" . | cut -d: -f1,2 || true)
 }
 
-echo "Revisando secretos en: $DIR"
-echo
-printf '%-32s %-6s %s\n' "ARCHIVO" "LINEA" "TIPO"
-printf '%-32s %-6s %s\n' "-------" "-----" "----"
+if [ "$JSON" -eq 0 ]; then
+  echo "Revisando secretos en: $DIR"
+  echo
+  printf '%-32s %-6s %s\n' "ARCHIVO" "LINEA" "TIPO"
+  printf '%-32s %-6s %s\n' "-------" "-----" "----"
+fi
 
 # 1) Archivos .env versionados (se reporta el archivo completo; las plantillas se omiten)
 # Nota: --include debe ir ANTES que cualquier --exclude; en GNU grep (Linux, Git Bash)
@@ -74,6 +96,16 @@ done < <(grep -rlIE --include=.env --include='.env.*' \
 buscar_por_linea "$PATRON_LLAVE" "llave-privada"
 buscar_por_linea "$PATRON_TOKEN" "token-hardcodeado"
 buscar_por_linea "$PATRON_PASSWORD" "password-hardcodeado"
+
+# Con --json: solo el arreglo; el código de salida sigue siendo 1 si hay hallazgos, 0 si no.
+if [ "$JSON" -eq 1 ]; then
+  if [ "$TOTAL" -eq 0 ]; then
+    echo "[]"
+    exit 0
+  fi
+  printf '[\n%s\n]\n' "$JSON_ITEMS"
+  exit 1
+fi
 
 # Resumen por tipo
 echo
