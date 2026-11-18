@@ -22,6 +22,6 @@ while IFS= read -r LOG; do
   gzip -f "$DESTINO"
   echo "Rotado: $(basename "$DESTINO").gz"
   ROTADOS=$((ROTADOS + 1))
-done < <(find "$LOGS" -type f -name '*.log' -mtime -"$DIAS")
+done < <(find "$LOGS" -type f -name '*.log' -mtime +"$DIAS")
 
 echo "Logs rotados: $ROTADOS"
