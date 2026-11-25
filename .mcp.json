@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "inventario-csv": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "herramientas/mcp-inventario/index.js"
+      ],
+      "env": {}
+    }
+  }
+}
