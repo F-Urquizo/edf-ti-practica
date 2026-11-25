@@ -1,0 +1,6 @@
+{
+  "name": "edf-ti",
+  "version": "1.0.0",
+  "description": "Kit de TI del curso de EDF: la skill reporte-incidente y el subagente auditor (datos ficticios).",
+  "author": { "name": "Automaite" }
+}

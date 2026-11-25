@@ -1,0 +1,15 @@
+{
+  "name": "edf-ti-practica",
+  "owner": { "name": "Automaite" },
+  "metadata": {
+    "description": "Marketplace de práctica del curso de Claude Code para TI de EDF."
+  },
+  "plugins": [
+    {
+      "name": "edf-ti",
+      "source": "./plugins/edf-ti",
+      "description": "La skill reporte-incidente y el subagente auditor.",
+      "version": "1.0.0"
+    }
+  ]
+}
